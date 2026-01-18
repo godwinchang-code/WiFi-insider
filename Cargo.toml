@@ -32,6 +32,14 @@ ordered-float = "4.2"
 anyhow = "1.0"
 thiserror = "1.0"
 
+[dev-dependencies]
+# Testing
+tempfile = "3.8"
+criterion = "0.5"
+mockall = "0.12"
+pretty_assertions = "1.4"
+hex = "0.4"
+
 [profile.release]
 opt-level = 3
 lto = true
@@ -41,6 +49,14 @@ strip = true
 [profile.dev]
 opt-level = 0
 
+[lib]
+name = "wifi_insider"
+path = "src/lib.rs"
+
 [[bin]]
 name = "wifi-insider"
 path = "src/main.rs"
+
+[[bench]]
+name = "packet_processing"
+harness = false

@@ -289,3 +289,187 @@ impl ExtendedCapabilities {
         self.data.len() > 3 && (self.data[3] & 0x80) != 0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_information_elements_empty() {
+        let data = vec![];
+        let elements = parse_information_elements(&data);
+        assert_eq!(elements.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_information_elements_single() {
+        // Single IE: SSID = "test"
+        let data = vec![
+            0x00,       // IE ID (SSID)
+            0x04,       // Length
+            b't', b'e', b's', b't', // Data
+        ];
+
+        let elements = parse_information_elements(&data);
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].id, 0);
+        assert_eq!(elements[0].length, 4);
+        assert_eq!(elements[0].data, vec![b't', b'e', b's', b't']);
+    }
+
+    #[test]
+    fn test_parse_information_elements_multiple() {
+        // Two IEs
+        let data = vec![
+            0x00, 0x02, b'h', b'i',   // SSID = "hi"
+            0x01, 0x01, 0x82,         // Supported Rates
+        ];
+
+        let elements = parse_information_elements(&data);
+        assert_eq!(elements.len(), 2);
+        assert_eq!(elements[0].id, 0);
+        assert_eq!(elements[1].id, 1);
+    }
+
+    #[test]
+    fn test_parse_information_elements_truncated() {
+        // IE header says 10 bytes but only 3 available
+        let data = vec![
+            0x00,       // IE ID
+            0x0a,       // Length = 10
+            b'a', b'b', b'c', // Only 3 bytes
+        ];
+
+        let elements = parse_information_elements(&data);
+        // Should stop parsing when truncated
+        assert_eq!(elements.len(), 0);
+    }
+
+    #[test]
+    fn test_get_ssid_valid() {
+        let ie = InformationElement {
+            id: IE_SSID,
+            length: 4,
+            data: b"test".to_vec(),
+        };
+
+        let ssid = get_ssid(&ie);
+        assert_eq!(ssid, Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_get_ssid_invalid_utf8() {
+        let ie = InformationElement {
+            id: IE_SSID,
+            length: 2,
+            data: vec![0xFF, 0xFE], // Invalid UTF-8
+        };
+
+        let ssid = get_ssid(&ie);
+        assert!(ssid.is_none());
+    }
+
+    #[test]
+    fn test_parse_rsn_wpa3_sae() {
+        // Minimal RSN IE with WPA3-SAE (AKM suite type 8)
+        let mut data = vec![
+            0x01, 0x00, // Version
+            0x00, 0x0f, 0xac, 0x04, // Group cipher: CCMP
+            0x01, 0x00, // Pairwise count = 1
+            0x00, 0x0f, 0xac, 0x04, // Pairwise: CCMP
+            0x01, 0x00, // AKM count = 1
+            0x00, 0x0f, 0xac, 0x08, // AKM: SAE (type 8)
+        ];
+
+        let ie = InformationElement {
+            id: IE_RSN,
+            length: data.len() as u8,
+            data,
+        };
+
+        let rsn = parse_rsn(&ie);
+        assert!(rsn.is_some());
+
+        let rsn_info = rsn.unwrap();
+        assert!(rsn_info.has_wpa3_sae());
+        assert!(!rsn_info.has_owe());
+    }
+
+    #[test]
+    fn test_parse_rsn_owe() {
+        // Minimal RSN IE with OWE (AKM suite type 18)
+        let mut data = vec![
+            0x01, 0x00, // Version
+            0x00, 0x0f, 0xac, 0x04, // Group cipher: CCMP
+            0x01, 0x00, // Pairwise count = 1
+            0x00, 0x0f, 0xac, 0x04, // Pairwise: CCMP
+            0x01, 0x00, // AKM count = 1
+            0x00, 0x0f, 0xac, 0x12, // AKM: OWE (type 18)
+        ];
+
+        let ie = InformationElement {
+            id: IE_RSN,
+            length: data.len() as u8,
+            data,
+        };
+
+        let rsn = parse_rsn(&ie);
+        assert!(rsn.is_some());
+
+        let rsn_info = rsn.unwrap();
+        assert!(!rsn_info.has_wpa3_sae());
+        assert!(rsn_info.has_owe());
+    }
+
+    #[test]
+    fn test_parse_ht_capabilities() {
+        // Create a valid HT Capabilities IE (26 bytes)
+        let mut data = vec![0u8; 26];
+        data[0] = 0x02; // Cap info low byte (40 MHz support)
+        data[1] = 0x00; // Cap info high byte
+
+        let ie = InformationElement {
+            id: IE_HT_CAPABILITIES,
+            length: 26,
+            data,
+        };
+
+        let ht_cap = parse_ht_capabilities(&ie);
+        assert!(ht_cap.is_some());
+
+        let cap = ht_cap.unwrap();
+        assert!(cap.channel_width()); // Should support 40 MHz
+    }
+
+    #[test]
+    fn test_parse_vht_capabilities() {
+        // Create a valid VHT Capabilities IE (12 bytes)
+        let mut data = vec![0u8; 12];
+        data[0] = 0x04; // Cap info indicates 160 MHz support
+
+        let ie = InformationElement {
+            id: IE_VHT_CAPABILITIES,
+            length: 12,
+            data,
+        };
+
+        let vht_cap = parse_vht_capabilities(&ie);
+        assert!(vht_cap.is_some());
+
+        let cap = vht_cap.unwrap();
+        assert_eq!(cap.max_bandwidth(), 160);
+    }
+
+    #[test]
+    fn test_extended_capabilities_bss_transition() {
+        let ie = InformationElement {
+            id: IE_EXTENDED_CAPABILITIES,
+            length: 5,
+            data: vec![0x00, 0x00, 0x08, 0x00, 0x00], // Bit 19 set (byte 2, bit 3)
+        };
+
+        let ext_cap = parse_extended_capabilities(&ie);
+        assert!(ext_cap.is_some());
+        assert!(ext_cap.unwrap().has_bss_transition());
+    }
+}

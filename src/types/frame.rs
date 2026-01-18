@@ -322,10 +322,10 @@ pub fn format_mac(addr: &[u8; 6]) -> String {
 /// Association/Reassociation status codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusCode {
-    Success = 0,
-    UnspecifiedFailure = 1,
-    TdlsRejectedAlternative = 2,
-    RefusedExternalReason = 3,
+    Success,
+    UnspecifiedFailure,
+    TdlsRejectedAlternative,
+    RefusedExternalReason,
     // ... (shortened for brevity, add more as needed)
     Unknown(u16),
 }
@@ -345,9 +345,9 @@ impl From<u16> for StatusCode {
 /// Association/Disassociation reason codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReasonCode {
-    Unspecified = 1,
-    PreviousAuthNoLongerValid = 2,
-    DeauthLeaving = 3,
+    Unspecified,
+    PreviousAuthNoLongerValid,
+    DeauthLeaving,
     // ... (add more as needed)
     Unknown(u16),
 }

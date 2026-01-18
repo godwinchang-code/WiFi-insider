@@ -1,7 +1,9 @@
 use crate::types::{IssueRecord, GlobalStats, IssueCategory, IssueType, IssueSeverity};
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
 /// Report generator for analysis results
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisReport {
     pub issues: Vec<IssueRecord>,
     pub stats: GlobalStats,

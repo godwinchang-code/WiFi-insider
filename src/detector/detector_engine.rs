@@ -8,13 +8,13 @@ pub struct DetectorEngine {
     pub issues: Vec<IssueRecord>,
 
     // Tracking state for various detectors
-    last_mcs_per_station: HashMap<String, u8>,
-    last_nss_per_station: HashMap<String, u8>,
-    last_bandwidth_per_station: HashMap<String, u16>,
-    roaming_events: HashMap<String, Vec<RoamingEvent>>,
-    auth_attempts: HashMap<String, Vec<AuthAttempt>>,
-    probe_events: HashMap<String, Vec<ProbeEvent>>,
-    frame_count: u64,
+    pub last_mcs_per_station: HashMap<String, u8>,
+    pub last_nss_per_station: HashMap<String, u8>,
+    pub last_bandwidth_per_station: HashMap<String, u16>,
+    pub roaming_events: HashMap<String, Vec<RoamingEvent>>,
+    pub auth_attempts: HashMap<String, Vec<AuthAttempt>>,
+    pub probe_events: HashMap<String, Vec<ProbeEvent>>,
+    pub frame_count: u64,
 }
 
 #[derive(Debug, Clone)]

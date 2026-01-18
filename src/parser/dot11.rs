@@ -152,7 +152,7 @@ pub fn get_bssid(frame: &Dot11Frame) -> Option<[u8; 6]> {
         FrameType::Management => frame.addr3,
         FrameType::Data => {
             if frame.frame_control.to_ds && !frame.frame_control.from_ds {
-                frame.addr1  // To AP
+                Some(frame.addr1)  // To AP
             } else if !frame.frame_control.to_ds && frame.frame_control.from_ds {
                 frame.addr2  // From AP
             } else {

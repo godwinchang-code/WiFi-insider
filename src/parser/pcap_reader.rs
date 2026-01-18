@@ -25,10 +25,14 @@ impl WifiPcapReader {
         let file = File::open(path.as_ref())
             .with_context(|| format!("Failed to open pcap file: {:?}", path.as_ref()))?;
 
-        let reader = PcapReader::new(file)
+        let mut reader = PcapReader::new(file)
             .with_context(|| "Failed to parse pcap file header")?;
 
-        let link_type = reader.header.datalink.0;
+        // Get link type from header
+        let datalink = reader.header().datalink;
+        // DataLink::IEEE802_11_RADIOTAP has value 127
+        // DataLink::IEEE802_11 has value 105
+        let link_type = u32::from(datalink);
 
         // Validate that this is an 802.11 capture
         // Link type 127 = IEEE 802.11 with Radiotap header
@@ -58,8 +62,10 @@ impl WifiPcapReader {
             Some(Ok(packet)) => {
                 self.packet_count += 1;
 
-                let timestamp = packet.timestamp.tv_sec as f64
-                    + (packet.timestamp.tv_usec as f64 / 1_000_000.0);
+                // Convert Duration to timestamp
+                let duration = packet.timestamp;
+                let timestamp = duration.as_secs() as f64
+                    + (duration.subsec_micros() as f64 / 1_000_000.0);
 
                 Ok(Some(PcapPacket {
                     packet_number: self.packet_count,

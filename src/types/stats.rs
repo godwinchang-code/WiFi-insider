@@ -184,3 +184,114 @@ impl GlobalStats {
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_station_stats_new() {
+        let stats = StationStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        assert_eq!(stats.mac_address, "aa:bb:cc:dd:ee:ff");
+        assert_eq!(stats.frame_count, 0);
+        assert_eq!(stats.retry_count, 0);
+    }
+
+    #[test]
+    fn test_station_retry_rate() {
+        let mut stats = StationStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        stats.frame_count = 100;
+        stats.retry_count = 15;
+
+        assert_eq!(stats.retry_rate(), 0.15);
+    }
+
+    #[test]
+    fn test_station_retry_rate_zero_frames() {
+        let stats = StationStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        assert_eq!(stats.retry_rate(), 0.0);
+    }
+
+    #[test]
+    fn test_station_mu_mimo_utilization() {
+        let mut stats = StationStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        stats.data_frames = 200;
+        stats.mu_mimo_frames = 40;
+
+        assert_eq!(stats.mu_mimo_utilization(), 0.2);
+    }
+
+    #[test]
+    fn test_station_ofdma_utilization() {
+        let mut stats = StationStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        stats.data_frames = 100;
+        stats.ofdma_frames = 50;
+
+        assert_eq!(stats.ofdma_utilization(), 0.5);
+    }
+
+    #[test]
+    fn test_bss_stats_new() {
+        let stats = BssStats::new("aa:bb:cc:dd:ee:ff".to_string());
+        assert_eq!(stats.bssid, "aa:bb:cc:dd:ee:ff");
+        assert_eq!(stats.beacon_count, 0);
+        assert!(!stats.eht_capable);
+    }
+
+    #[test]
+    fn test_channel_stats_utilization() {
+        let mut stats = ChannelStats::default();
+        stats.total_time_us = 1_000_000;  // 1 second
+        stats.busy_time_us = 500_000;     // 0.5 seconds
+
+        assert_eq!(stats.utilization(), 0.5);
+    }
+
+    #[test]
+    fn test_channel_stats_utilization_zero() {
+        let stats = ChannelStats::default();
+        assert_eq!(stats.utilization(), 0.0);
+    }
+
+    #[test]
+    fn test_global_stats_get_or_create_station() {
+        let mut global = GlobalStats::new();
+
+        let station1 = global.get_or_create_station("aa:bb:cc:dd:ee:ff");
+        station1.frame_count = 10;
+
+        let station2 = global.get_or_create_station("aa:bb:cc:dd:ee:ff");
+        assert_eq!(station2.frame_count, 10);  // Should be same instance
+
+        let station3 = global.get_or_create_station("11:22:33:44:55:66");
+        assert_eq!(station3.frame_count, 0);  // New station
+
+        assert_eq!(global.stations.len(), 2);
+    }
+
+    #[test]
+    fn test_global_stats_get_or_create_bss() {
+        let mut global = GlobalStats::new();
+
+        let bss1 = global.get_or_create_bss("aa:bb:cc:dd:ee:ff");
+        bss1.beacon_count = 5;
+
+        let bss2 = global.get_or_create_bss("aa:bb:cc:dd:ee:ff");
+        assert_eq!(bss2.beacon_count, 5);  // Should be same instance
+
+        assert_eq!(global.bss.len(), 1);
+    }
+
+    #[test]
+    fn test_global_stats_get_or_create_channel() {
+        let mut global = GlobalStats::new();
+
+        let ch1 = global.get_or_create_channel(6);
+        ch1.frame_count = 100;
+
+        let ch2 = global.get_or_create_channel(6);
+        assert_eq!(ch2.frame_count, 100);  // Should be same instance
+
+        assert_eq!(global.channels.len(), 1);
+    }
+}

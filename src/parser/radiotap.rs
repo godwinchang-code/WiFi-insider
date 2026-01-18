@@ -400,3 +400,108 @@ pub fn freq_to_channel(freq: u16) -> Option<u8> {
 pub fn is_6ghz(freq: u16) -> bool {
     freq >= 5955 && freq <= 7115
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_freq_to_channel_2_4ghz() {
+        assert_eq!(freq_to_channel(2412), Some(1));
+        assert_eq!(freq_to_channel(2437), Some(6));
+        assert_eq!(freq_to_channel(2462), Some(11));
+        assert_eq!(freq_to_channel(2484), Some(14));
+    }
+
+    #[test]
+    fn test_freq_to_channel_5ghz() {
+        assert_eq!(freq_to_channel(5180), Some(36));
+        assert_eq!(freq_to_channel(5500), Some(100));
+        assert_eq!(freq_to_channel(5825), Some(165));
+    }
+
+    #[test]
+    fn test_freq_to_channel_6ghz() {
+        assert_eq!(freq_to_channel(5955), Some(1));
+        assert_eq!(freq_to_channel(6115), Some(33));
+        assert_eq!(freq_to_channel(7115), Some(233));
+    }
+
+    #[test]
+    fn test_freq_to_channel_invalid() {
+        assert_eq!(freq_to_channel(1000), None);
+        assert_eq!(freq_to_channel(9999), None);
+    }
+
+    #[test]
+    fn test_is_6ghz() {
+        assert!(!is_6ghz(2412));  // 2.4 GHz
+        assert!(!is_6ghz(5180));  // 5 GHz
+        assert!(is_6ghz(5955));   // 6 GHz start
+        assert!(is_6ghz(6000));   // 6 GHz middle
+        assert!(is_6ghz(7115));   // 6 GHz end
+        assert!(!is_6ghz(7200));  // Above 6 GHz
+    }
+
+    #[test]
+    fn test_parse_radiotap_too_short() {
+        let data = vec![0x00, 0x00, 0x08];  // Too short
+        let result = parse_radiotap(&data);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("too short"));
+    }
+
+    #[test]
+    fn test_parse_radiotap_basic() {
+        // Minimal valid radiotap header
+        let data = vec![
+            0x00,       // version
+            0x00,       // padding
+            0x08, 0x00, // length (8 bytes)
+            0x00, 0x00, 0x00, 0x00, // present flags (none)
+        ];
+
+        let result = parse_radiotap(&data);
+        assert!(result.is_ok());
+
+        let (info, len) = result.unwrap();
+        assert_eq!(info.version, 0);
+        assert_eq!(info.length, 8);
+        assert_eq!(len, 8);
+    }
+
+    #[test]
+    fn test_parse_radiotap_with_channel() {
+        // Radiotap with channel field (flag bit 3)
+        let mut data = vec![
+            0x00,       // version
+            0x00,       // padding
+            0x0c, 0x00, // length (12 bytes)
+            0x08, 0x00, 0x00, 0x00, // present flags (CHANNEL = bit 3)
+            0x6c, 0x09, // frequency 2412 (little endian)
+            0xa0, 0x00, // flags
+        ];
+
+        let result = parse_radiotap(&data);
+        assert!(result.is_ok());
+
+        let (info, _) = result.unwrap();
+        assert_eq!(info.channel_freq, Some(2412));
+    }
+
+    #[test]
+    fn test_parse_radiotap_incomplete() {
+        // Header says it's 20 bytes but data is only 10
+        let data = vec![
+            0x00,       // version
+            0x00,       // padding
+            0x14, 0x00, // length (20 bytes)
+            0x00, 0x00, 0x00, 0x00, // present flags
+            0x00, 0x00, // only 2 more bytes
+        ];
+
+        let result = parse_radiotap(&data);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Incomplete"));
+    }
+}
